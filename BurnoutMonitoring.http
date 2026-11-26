@@ -1,0 +1,6 @@
+@BurnoutMonitoring_HostAddress = http://localhost:5098
+
+GET {{BurnoutMonitoring_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

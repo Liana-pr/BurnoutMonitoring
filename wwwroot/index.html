@@ -1,0 +1,567 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мониторинг выгорания</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #eee;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: #7f8c8d;
+            font-weight: bold;
+        }
+
+            .tab.active {
+                border-bottom: 2px solid #3498db;
+                color: #3498db;
+            }
+
+        .tab-content {
+            display: none;
+        }
+
+            .tab-content.active {
+                display: block;
+            }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+            button:hover {
+                background-color: #2980b9;
+            }
+
+        /* Стили для кнопок методик */
+        .method-btn {
+            padding: 8px 15px;
+            border: 1px solid #3498db;
+            background: #fff;
+            color: #3498db;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+            .method-btn.active {
+                background: #3498db;
+                color: white;
+            }
+
+        .question-block {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+
+        .question-text {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .scale {
+            display: flex;
+            justify-content: space-between;
+            max-width: 300px;
+        }
+
+            .scale label {
+                cursor: pointer;
+                text-align: center;
+            }
+
+        .result-box {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .high-risk {
+            background-color: #ffcccc;
+            color: #cc0000;
+        }
+
+        .medium-risk {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .low-risk {
+            background-color: #d4edda;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <!-- Экран входа -->
+    <div id="login-screen" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #2c3e50; display: flex; justify-content: center; align-items: center; z-index: 9999;">
+        <div style="background: white; padding: 40px; border-radius: 10px; width: 300px; text-align: center;">
+            <h2>Вход в систему</h2>
+            <input type="text" id="login-username" placeholder="Логин" style="width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px;">
+            <input type="password" id="login-password" placeholder="Пароль" style="width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px;">
+            <button onclick="login()" style="width: 100%; padding: 10px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">Войти</button>
+            <p id="login-error" style="color: red; font-size: 14px; display: none;"></p>
+        </div>
+    </div>
+
+    <div class="container" id="main-container" style="display: none;">
+        <h1>Система мониторинга выгорания</h1>
+        <div id="user-info" style="text-align: right; margin-bottom: 10px;">
+            <span id="current-user" style="margin-right: 15px; color: #555;"></span>
+            <button onclick="logout()" style="background: #e74c3c; padding: 5px 10px; font-size: 14px;">Выйти</button>
+        </div>
+
+        <div class="tabs" id="main-tabs">
+            <div class="tab" id="tab-employee" onclick="showTab('employee')">👨‍⚕️ Сотрудник</div>
+            <div class="tab" id="tab-psychologist" onclick="showTab('psychologist')">🧠 Психолог</div>
+            <div class="tab" id="tab-dashboard" onclick="showTab('dashboard')">📊 Главврач</div>
+        </div>
+
+        <!-- Вкладка 1: Сотрудник -->
+        <div id="employee" class="tab-content">
+            <h2>Анонимный тест на выгорание</h2>
+            <p>Ответьте на несколько вопросов, чтобы оценить свое состояние. Результаты анонимны.</p>
+            <div id="method-tabs" style="margin-bottom: 20px; display: flex; gap: 10px;">
+                <button onclick="loadQuestions('maslach')" id="btn-maslach" class="method-btn active">Маслач</button>
+                <button onclick="loadQuestions('boyko')" id="btn-boyko" class="method-btn">Бойко</button>
+            </div>
+            <div id="questions-container"><p>Загрузка вопросов...</p></div>
+            <div style="margin-top: 20px;">
+                <label style="font-weight: bold;">Сколько сверхурочных часов вы отработали за последний месяц?</label>
+                <input type="number" id="overtime-input" value="0" min="0" style="width: 100%; padding: 10px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc;">
+            </div>
+            <button onclick="submitTest()" id="submit-test-btn" style="margin-top: 20px; width: 100%;">Отправить ответы</button>
+            <div id="result-box" class="result-box"></div>
+        </div>
+
+        <!-- Вкладка 2: Психолог -->
+        <div id="psychologist" class="tab-content">
+            <h2>Группа риска</h2>
+            <p>Список выявленных случаев (анонимно, по ID сессии).</p>
+            <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+                <button onclick="loadRiskGroup('date')">📅 Сначала новые</button>
+                <button onclick="loadRiskGroup('risk')" style="background: #c0392b;">⚠️ Сначала опасные</button>
+            </div>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 20px; display: none;" id="risk-table">
+                <thead>
+                    <tr style="background-color: #3498db; color: white;">
+                        <th style="padding: 10px; text-align: left;">Дата</th>
+                        <th style="padding: 10px; text-align: left;">ID Сессии</th>
+                        <th style="padding: 10px; text-align: left;">Риск</th>
+                        <th style="padding: 10px; text-align: left;">Вероятность</th>
+                    </tr>
+                </thead>
+                <tbody id="risk-table-body"></tbody>
+            </table>
+        </div>
+
+        <!-- Вкладка 3: Главврач -->
+        <div id="dashboard" class="tab-content">
+            <h2>Дашборд по отделениям</h2>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <button onclick="showChart('burnout')" id="btn-burnout" style="background: #3498db;">🔥 Выгорание</button>
+                <button onclick="showChart('overtime')" id="btn-overtime" style="background: #95a5a6;">⏰ Сверхурочные</button>
+                <button onclick="loadDashboard()" style="margin-left: auto;">Обновить данные</button>
+            </div>
+
+            <div id="chart-burnout" style="height: 300px; background: white; padding: 15px; border-radius: 8px;">
+                <canvas id="riskChart"></canvas>
+            </div>
+
+            <div id="chart-overtime" style="height: 300px; background: white; padding: 15px; border-radius: 8px; display: none;">
+                <canvas id="overtimeChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ВАЖНО: Вставьте ваши реальные ID методик из базы данных!
+        const methodIds = {
+            'maslach': 'b5e3b05e-df53-481d-b4d7-e470dbb3d73c', // <--- Ваш ID Маслач
+            'boyko': 'd1850228-0455-40f7-8460-2d3b3c5b9957'    // <--- Ваш ID Бойко
+        };
+
+        let authToken = localStorage.getItem('token');
+        let userRole = localStorage.getItem('role');
+        let currentSessionHash = "";
+
+        // --- АВТОРИЗАЦИЯ ---
+        async function login() {
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('role', data.role);
+                    localStorage.setItem('currentUser', data.username);
+                    window.location.reload();
+                } else {
+                    document.getElementById('login-error').style.display = 'block';
+                    document.getElementById('login-error').innerText = "Неверный логин или пароль";
+                }
+            } catch (e) {
+                alert("Ошибка сети: " + e.message);
+            }
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.reload();
+        }
+
+        // --- ЗАГРУЗКА ПРИ СТАРТЕ ---
+        window.onload = () => {
+            if (authToken) {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('main-container').style.display = 'block';
+                document.getElementById('current-user').innerText = "Вы вошли как: " + (localStorage.getItem('currentUser') || 'Пользователь');
+                showTabBasedOnRole(userRole);
+            } else {
+                document.getElementById('login-screen').style.display = 'flex';
+                document.getElementById('main-container').style.display = 'none';
+            }
+        };
+
+        function showTabBasedOnRole(role) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.style.display = 'none');
+
+            if (role === 'Employee') {
+                document.getElementById('tab-employee').style.display = 'block';
+                document.getElementById('tab-employee').classList.add('active');
+                document.getElementById('employee').classList.add('active');
+                loadQuestions('maslach'); // Загружаем Маслач по умолчанию
+            } else if (role === 'Psychologist') {
+                document.getElementById('tab-psychologist').style.display = 'block';
+                document.getElementById('tab-psychologist').classList.add('active');
+                document.getElementById('psychologist').classList.add('active');
+                loadRiskGroup('date'); // По умолчанию сортируем по дате
+            } else if (role === 'ChiefPhysician') {
+                document.getElementById('tab-dashboard').style.display = 'block';
+                document.getElementById('tab-dashboard').classList.add('active');
+                document.getElementById('dashboard').classList.add('active');
+                loadDashboard();
+            }
+        }
+
+        // --- ЛОГИКА ТЕСТА (СОТРУДНИК) ---
+        async function loadQuestions(methodCode = 'maslach') {
+            try {
+                // ОЧИЩАЕМ СТАРЫЙ РЕЗУЛЬТАТ ПРИ СМЕНЕ ТЕСТА
+                const resultBox = document.getElementById('result-box');
+                resultBox.style.display = 'none';
+                resultBox.innerHTML = '';
+                resultBox.className = 'result-box'; // Сбрасываем цвет
+                // Подсвечиваем активную кнопку
+                document.getElementById('btn-maslach').classList.remove('active');
+                document.getElementById('btn-boyko').classList.remove('active');
+                document.getElementById('btn-' + methodCode).classList.add('active');
+
+                const response = await fetch('/api/test/session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ methodId: methodIds[methodCode] })
+                });
+
+                if (!response.ok) throw new Error("Не удалось создать сессию");
+
+                const data = await response.json();
+                currentSessionHash = data.sessionHash;
+
+                const container = document.getElementById('questions-container');
+                container.innerHTML = '';
+
+                data.questions.forEach((q, index) => {
+                    container.innerHTML += `
+                                <div class="question-block">
+                                    <div class="question-text">${index + 1}. ${q.text}</div>
+                                    <div class="scale" style="flex-wrap: wrap; max-width: 100%; gap: 10px;">
+                                        <label><input type="radio" name="q_${q.questionId}" value="0"> 0 (Никогда)</label>
+                                        <label><input type="radio" name="q_${q.questionId}" value="1"> 1 (Очень редко)</label>
+                                        <label><input type="radio" name="q_${q.questionId}" value="2"> 2 (Редко)</label>
+                                        <label><input type="radio" name="q_${q.questionId}" value="3"> 3 (Иногда)</label>
+                                        <label><input type="radio" name="q_${q.questionId}" value="4"> 4 (Часто)</label>
+                                        <label><input type="radio" name="q_${q.questionId}" value="5"> 5 (Очень часто)</label>
+                                        <label><input type="radio" name="q_${q.questionId}" value="6"> 6 (Каждый день)</label>
+                                    </div>
+                                </div>
+                            `
+                });
+            } catch (error) {
+                document.getElementById('questions-container').innerHTML = `<p style="color:red">Ошибка: ${error.message}</p>`;
+            }
+        }
+
+        async function submitTest() {
+            // Берем кнопку строго по ID
+            const btn = document.getElementById('submit-test-btn');
+
+            // Если кнопка уже заблокирована, ничего не делаем (защита от двойного клика)
+            if (btn.disabled) return;
+
+            btn.disabled = true;
+            btn.innerText = "Отправка...";
+
+            const answers = [];
+            const inputs = document.querySelectorAll('input[type="radio"]:checked');
+
+            if (inputs.length === 0) {
+                alert("Пожалуйста, ответьте хотя бы на один вопрос.");
+                btn.disabled = false;
+                btn.innerText = "Отправить ответы";
+                return;
+            }
+
+            inputs.forEach(input => {
+                const questionId = input.name.replace('q_', '');
+                answers.push({ questionId: questionId, score: parseInt(input.value) });
+            });
+
+            try {
+                // Берем значение сверхурочных из поля ввода
+                const overtimeHours = parseFloat(document.getElementById('overtime-input').value) || 0;
+
+                const response = await fetch('/api/test/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionHash: currentSessionHash,
+                        answers: answers,
+                        overtimeHours: overtimeHours // <--- Добавили новое поле
+                    })
+                });
+                if (!response.ok) throw new Error("Ошибка сервера (возможно, тест уже сдан).");
+
+                const result = await response.json();
+                const resultBox = document.getElementById('result-box');
+                resultBox.style.display = 'block';
+
+                let factorsText = 'Данные отсутствуют';
+                if (result.factors && result.factors.length > 0) factorsText = result.factors.join('<br>');
+
+                if (result.riskClass === 'high') {
+                    resultBox.className = 'result-box high-risk';
+                    resultBox.innerHTML = `<h3>⚠️ Высокий риск выгорания (${Math.round(result.probability * 100)}%)</h3><p>${factorsText}</p>`;
+                } else if (result.riskClass === 'medium') {
+                    resultBox.className = 'result-box medium-risk';
+                    resultBox.innerHTML = `<h3>🟡 Средний риск выгорания (${Math.round(result.probability * 100)}%)</h3><p>${factorsText}</p>`;
+                } else {
+                    resultBox.className = 'result-box low-risk';
+                    resultBox.innerHTML = `<h3>✅ Низкий риск выгорания</h3><p>${factorsText}</p>`;
+                }
+
+            } catch (error) {
+                alert(error.message);
+            } finally {
+                // Принудительно разблокируем кнопку через 1 секунду
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerText = "Отправить ответы";
+                }, 1000);            }
+        }
+
+        // --- ПСИХОЛОГ ---
+
+        async function loadRiskGroup(sortType = 'date') {
+            try {
+                const response = await fetch('/api/test/risks', {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                if (!response.ok) throw new Error("Ошибка доступа (возможно, нет прав)");
+
+                // 1. Сначала получаем данные
+                let data = await response.json();
+
+                // 2. ТЕПЕРЬ сортируем
+                if (sortType === 'date') {
+                    data.sort((a, b) => new Date(b.assessedAt) - new Date(a.assessedAt));
+                } else if (sortType === 'risk') {
+                    const riskWeight = { 'high': 3, 'medium': 2, 'low': 1 };
+                    data.sort((a, b) => riskWeight[b.riskClass.toLowerCase()] - riskWeight[a.riskClass.toLowerCase()]);
+                }
+
+                const tbody = document.getElementById('risk-table-body');
+                tbody.innerHTML = '';
+
+                data.forEach(risk => {
+                    let color = '';
+                    let riskLower = risk.riskClass.toLowerCase();
+                    if (riskLower === 'high') color = '#ffcccc';
+                    else if (riskLower === 'medium') color = '#fff3cd';
+                    else color = '#d4edda';
+
+                    let date = new Date(risk.assessedAt).toLocaleString('ru-RU');
+
+                    tbody.innerHTML += `
+                                    <tr style="border-bottom: 1px solid #eee;">
+                                        <td style="padding: 10px;">${date}</td>
+                                        <td style="padding: 10px; font-family: monospace;">${risk.sessionHash.substring(0, 8)}...</td>
+                                        <td style="padding: 10px; font-weight: bold; background-color: ${color};">${risk.riskClass}</td>
+                                        <td style="padding: 10px;">${Math.round(risk.probability * 100)}%</td>
+                                    </tr>
+                                `;
+                });
+
+                document.getElementById('risk-table').style.display = 'table';
+            } catch (error) {
+                alert("Ошибка загрузки данных: " + error.message);
+            }
+        }
+
+        // --- ГЛАВВРАЧ (ГРАФИКИ) ---
+        let riskChartInstance = null;
+        let overtimeChartInstance = null;
+
+        function showChart(type) {
+            document.getElementById('chart-burnout').style.display = 'none';
+            document.getElementById('chart-overtime').style.display = 'none';
+            document.getElementById('btn-burnout').style.background = '#95a5a6';
+            document.getElementById('btn-overtime').style.background = '#95a5a6';
+
+            if (type === 'burnout') {
+                document.getElementById('chart-burnout').style.display = 'block';
+                document.getElementById('btn-burnout').style.background = '#3498db';
+            } else {
+                document.getElementById('chart-overtime').style.display = 'block';
+                document.getElementById('btn-overtime').style.background = '#e67e22';
+            }
+        }
+
+        async function loadDashboard() {
+            try {
+                const response = await fetch('/api/dashboard', {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                if (!response.ok) throw new Error("Ошибка доступа (возможно, нет прав)");
+
+                const data = await response.json();
+
+                let high = 0, medium = 0, low = 0, notPassed = 0;
+                let labels = [];
+                let overtimeData = [];
+
+                data.departments.forEach(dept => {
+                    high += dept.highRiskSessions;
+                    medium += dept.mediumRiskSessions;
+                    low += dept.lowRiskSessions;
+                    notPassed += dept.notPassed; // Суммируем непрошедших
+
+                    labels.push(dept.departmentName);
+                    overtimeData.push(dept.avgOvertime);
+                });
+
+                // --- Рисуем Круговую (Выгорание) ---
+                const ctxRisk = document.getElementById('riskChart').getContext('2d');
+                if (riskChartInstance) riskChartInstance.destroy();
+
+                // Общее количество для расчета процентов
+                const total = high + medium + low + notPassed;
+
+                riskChartInstance = new Chart(ctxRisk, {
+                    type: 'doughnut',
+                    data: {
+                        labels: [
+                            `Высокий (${high})`,
+                            `Средний (${medium})`,
+                            `Низкий (${low})`,
+                            `Не прошли (${notPassed})`
+                        ],
+                        datasets: [{
+                            data: [high, medium, low, notPassed],
+                            backgroundColor: ['#e74c3c', '#f1c40f', '#2ecc71', '#bdc3c7'], // Красный, Желтый, Зеленый, Серый
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right', // Легенда справа
+                                labels: {
+                                    font: { size: 14 },
+                                    padding: 20
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // --- Рисуем Столбчатую (Сверхурочные) ---
+                const ctxOvertime = document.getElementById('overtimeChart').getContext('2d');
+                if (overtimeChartInstance) overtimeChartInstance.destroy();
+
+                // Красим столбики в зависимости от часов
+                const backgroundColors = overtimeData.map(val => {
+                    if (val <= 3) return '#2ecc71'; // Зеленый (0-3)
+                    if (val <= 8) return '#f1c40f'; // Желтый (4-8)
+                    return '#e74c3c'; // Красный (>8)
+                });
+
+                overtimeChartInstance = new Chart(ctxOvertime, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Средние сверхурочные (ч)',
+                            data: overtimeData,
+                            backgroundColor: backgroundColors // Применяем цвета
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+                });
+            } catch (error) {
+                alert("Ошибка загрузки дашборда: " + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
